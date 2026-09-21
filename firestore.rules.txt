@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- App antigua de CHMartorell (se queda igual, no se toca) ----
+    match /balonmano/{document=**} {
+      allow read, write: if true;
+    }
+
+    // ---- App nueva multi-club ----
+
+    function isMember(clubId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
+    }
+
+    match /clubs/{clubId} {
+      // Solo el cuerpo tecnico de ESE club puede leer o cambiar sus datos (nombre, categorias...)
+      allow read, update: if isMember(clubId);
+      // Cualquier persona con sesion iniciada puede crear un club nuevo
+      allow create: if request.auth != null;
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isMember(clubId);
+        // Solo te puedes añadir a ti mismo/a (al crear el club, o al unirte con un codigo)
+        allow create: if request.auth != null && request.auth.uid == memberId;
+        allow delete: if isMember(clubId);
+        allow update: if false;
+      }
+
+      match /categories/{catId} {
+        // Los datos de partidos/jugadoras de cada categoria: solo el cuerpo tecnico de ese club
+        allow read, write: if isMember(clubId);
+      }
+    }
+
+    // Códigos de invitación: cualquiera con sesión puede consultarlos (para unirse a un club) o
+    // crear uno nuevo (al crear un club); nunca se pueden modificar ni borrar desde el cliente.
+    match /inviteCodes/{code} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // Cada persona solo puede leer/escribir su propia lista de clubes
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

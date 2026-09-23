@@ -63,7 +63,8 @@ function friendlyAuthError(e){
   if(code.includes('too-many-requests')) return 'Demasiados intentos. Espera un momento y prueba otra vez.';
   if(code.includes('popup-blocked')) return 'El navegador ha bloqueado la ventana de Google. Permite ventanas emergentes e inténtalo otra vez.';
   if(code.includes('account-exists-with-different-credential')) return 'Ese correo ya tiene una cuenta creada con contraseña. Inicia sesión con correo y contraseña.';
-  return 'Ha ocurrido un error. Inténtalo de nuevo.';
+  if(code.includes('unauthorized-domain')) return 'Este dominio todavía no está autorizado en Firebase (Authentication → Settings → Authorized domains).';
+  return code ? `Ha ocurrido un error (${code}). Inténtalo de nuevo.` : 'Ha ocurrido un error. Inténtalo de nuevo.';
 }
 
 // ---------------- Clubes ----------------
@@ -249,12 +250,13 @@ function renderClubSetupScreen(){
           </button>
         `).join('')}
       </div>
-      <div class="auth-divider">o</div>
       <div class="auth-row-2">
-        <button class="btn btn-ghost btn-block" id="cs-create">+ Crear otro club</button>
-        <button class="btn btn-ghost btn-block" id="cs-join">Unirme con código</button>
+        <button class="btn btn-ghost" id="cs-create">+ Crear club</button>
+        <button class="btn btn-ghost" id="cs-join">Unirme con código</button>
       </div>
-      <button class="btn btn-ghost btn-block auth-logout" id="cs-logout">Cerrar sesión</button>
+      <div class="auth-links">
+        <button class="auth-link-btn" id="cs-logout">Cerrar sesión</button>
+      </div>
     `);
     app.appendChild(card);
     card.querySelectorAll('.club-pick-btn').forEach(b=> b.addEventListener('click', ()=> selectClub(b.dataset.id)));
@@ -268,12 +270,14 @@ function renderClubSetupScreen(){
     const card = authCard(`
       <div class="auth-section-title">Unirme a un club</div>
       <div class="form">
-        <div><label>Código de invitación</label><input type="text" id="join-code" maxlength="6" style="text-transform:uppercase;letter-spacing:2px;font-weight:700;" placeholder="ABC123"></div>
+        <div><label>Código de invitación</label><input type="text" id="join-code" maxlength="6" style="text-transform:uppercase;letter-spacing:3px;font-weight:700;text-align:center;" placeholder="ABC123"></div>
       </div>
       ${authError ? `<div class="auth-error">${escapeHtml(authError)}</div>` : ''}
       <button class="btn btn-accent btn-block" id="join-submit" ${authBusy?'disabled':''}>${authBusy?'Un momento…':'Unirme'}</button>
-      <button class="btn btn-ghost btn-block" id="join-back">${userClubs.length>0 ? '← Volver' : '← Crear un club en su lugar'}</button>
-      <button class="btn btn-ghost btn-block auth-logout" id="cs-logout">Cerrar sesión</button>
+      <div class="auth-links">
+        <button class="auth-link-btn" id="join-back">${userClubs.length>0 ? '← Volver' : '← Crear un club en su lugar'}</button>
+        <button class="auth-link-btn" id="cs-logout">Cerrar sesión</button>
+      </div>
     `);
     app.appendChild(card);
     card.querySelector('#join-submit').addEventListener('click', ()=> joinClubWithCode(card.querySelector('#join-code').value));
@@ -287,15 +291,17 @@ function renderClubSetupScreen(){
     <div class="auth-section-title">Crea tu club</div>
     <div class="form">
       <div><label>Nombre del club</label><input type="text" id="new-club-name" placeholder="Ej. CH Martorell"></div>
-      <div><label>Categorías</label></div>
-      <div id="new-club-cats"></div>
-      <button class="btn btn-ghost btn-small" id="add-cat-row" type="button">+ Añadir categoría</button>
     </div>
+    <div class="new-club-cats-label"><label>Categorías</label></div>
+    <div id="new-club-cats"></div>
+    <button class="add-cat-btn" id="add-cat-row" type="button">+ Añadir categoría</button>
     ${authError ? `<div class="auth-error">${escapeHtml(authError)}</div>` : ''}
-    <button class="btn btn-accent btn-block" id="create-submit" ${authBusy?'disabled':''}>${authBusy?'Un momento…':'Crear club'}</button>
-    ${userClubs.length>0 ? '<button class="btn btn-ghost btn-block" id="create-back">← Volver</button>' : ''}
-    <button class="btn btn-ghost btn-block" id="cs-join-instead">¿Tienes un código de invitación? Únete a un club existente</button>
-    <button class="btn btn-ghost btn-block auth-logout" id="cs-logout">Cerrar sesión</button>
+    <button class="btn btn-accent btn-block" id="create-submit" style="margin-top:18px;" ${authBusy?'disabled':''}>${authBusy?'Un momento…':'Crear club'}</button>
+    <div class="auth-links">
+      ${userClubs.length>0 ? '<button class="auth-link-btn" id="create-back">← Volver</button>' : ''}
+      <button class="auth-link-btn" id="cs-join-instead">¿Tienes un código de invitación? Únete a un club existente</button>
+      <button class="auth-link-btn" id="cs-logout">Cerrar sesión</button>
+    </div>
   `);
   app.appendChild(card);
 

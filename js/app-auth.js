@@ -91,7 +91,8 @@ async function selectClub(clubId){
     const doc = await db.collection('clubs').doc(clubId).get();
     if(!doc.exists){ authBusy = false; showToast('Ese club ya no existe.'); render(); return; }
     const data = doc.data();
-    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode, logo: data.logo || null };
+    const myEntry = userClubs.find(c => c.id === clubId);
+    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode, logo: data.logo || null, myRole: myEntry ? myEntry.role : 'coach' };
     TEAM_NAME = data.name;
     CATEGORIES = data.categories || [];
     activeCategory = CATEGORIES[0] || null;
@@ -391,11 +392,25 @@ async function addCategoryToClub(rawName){
   }
 }
 
+async function updateMemberRole(memberUid, newRole){
+  try{
+    await db.collection('clubs').doc(currentClub.id).collection('members').doc(memberUid).update({ role: newRole });
+    showToast('Rol actualizado.');
+    render(); // vuelve a pintar el panel con la lista al día
+  }catch(e){
+    showToast('No se pudo cambiar el rol.');
+  }
+}
+
 function renderClubPanelModal(box){
+  const isOwner = currentClub.myRole === 'owner';
   box.innerHTML = `<div class="empty">Cargando…</div>`;
-  db.collection('clubs').doc(currentClub.id).collection('members').get().then(snap=>{
+  const membersPromise = isOwner
+    ? db.collection('clubs').doc(currentClub.id).collection('members').get()
+    : Promise.resolve(null);
+  membersPromise.then(snap=>{
     const members = [];
-    snap.forEach(d=> members.push(d.data()));
+    if(snap) snap.forEach(d=> members.push({ uid: d.id, ...d.data() }));
     box.innerHTML = `
       <h3>${escapeHtml(currentClub.name)}</h3>
       <div class="club-logo-row">
@@ -419,14 +434,23 @@ function renderClubPanelModal(box){
         <button class="btn btn-ghost btn-small" id="new-cat-add">Añadir</button>
       </div>
       <div class="auth-section-title" style="margin-top:14px;">Cuerpo técnico</div>
-      <div class="goal-log-list">
-        ${members.map(m=>`
-          <div class="goal-log-row">
-            <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
-            <span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'}</span>
-          </div>
-        `).join('')}
-      </div>
+      ${isOwner ? `
+        <div class="goal-log-list">
+          ${members.map(m=>`
+            <div class="goal-log-row member-row">
+              <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
+              ${m.role==='owner'
+                ? '<span class="goal-log-type">Propietario/a</span>'
+                : `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
+                     <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
+                     <option value="owner">Propietario/a</option>
+                   </select>`}
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <p style="color:var(--muted);font-size:12.5px;">Solo el propietario/a del club puede ver quién tiene acceso.</p>
+      `}
       <div class="modal-actions" style="margin-top:14px;">
         ${userClubs.length>1 ? '<button class="btn btn-ghost" id="club-switch">Cambiar de club</button>' : ''}
         <button class="btn btn-ghost" id="club-logout">Cerrar sesión</button>
@@ -435,6 +459,9 @@ function renderClubPanelModal(box){
     `;
     box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
     box.querySelector('#club-logout').addEventListener('click', logOut);
+    box.querySelectorAll('.member-role-select').forEach(sel=>{
+      sel.addEventListener('change', ()=> updateMemberRole(sel.dataset.uid, sel.value));
+    });
     box.querySelector('#club-logo-btn').addEventListener('click', ()=> box.querySelector('#club-logo-input').click());
     box.querySelector('#club-logo-input').addEventListener('change', (e)=>{
       const file = e.target.files && e.target.files[0];

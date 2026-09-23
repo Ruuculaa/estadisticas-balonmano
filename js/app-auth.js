@@ -161,8 +161,6 @@ async function joinClubWithCode(code){
     const clubName = codeDoc.data().clubName || 'Club';
     const alreadyMember = userClubs.some(c=>c.id===clubId);
     if(!alreadyMember){
-      // Primero nos unimos (esto sí está permitido: solo te puedes añadir a ti mismo/a).
-      // Recién entonces podemos leer los datos del club, porque las reglas exigen ya ser miembro.
       await db.collection('clubs').doc(clubId).collection('members').doc(currentUser.uid).set({
         email: currentUser.email, role: 'coach', joinedAt: Date.now(),
       });
@@ -200,38 +198,15 @@ function authCard(innerHtml){
 function renderAuthScreen(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  const isLogin = authMode === 'login';
   const card = authCard(`
     <button class="btn btn-google btn-block" id="auth-google" ${authBusy?'disabled':''}>
       <svg width="18" height="18" viewBox="0 0 18 18" style="flex-shrink:0;"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.8 2.73v2.27h2.91c1.7-1.57 2.69-3.87 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.91-2.27c-.81.54-1.84.86-3.05.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.34C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.96 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.95l3 2.34C4.67 5.16 6.66 3.58 9 3.58z"/></svg>
-      <span>Continuar con Google</span>
+      <span>${authBusy ? 'Un momento…' : 'Continuar con Google'}</span>
     </button>
-    <div class="auth-divider">o con correo</div>
-    <div class="segmented auth-mode-seg">
-      <button type="button" data-m="login" class="${isLogin?'active':''}">Iniciar sesión</button>
-      <button type="button" data-m="signup" class="${!isLogin?'active':''}">Crear cuenta</button>
-    </div>
-    <div class="form">
-      <div><label>Correo</label><input type="email" id="auth-email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
-      <div><label>Contraseña</label><input type="password" id="auth-password" autocomplete="${isLogin?'current-password':'new-password'}" placeholder="Al menos 6 caracteres"></div>
-    </div>
     ${authError ? `<div class="auth-error">${escapeHtml(authError)}</div>` : ''}
-    <button class="btn btn-accent btn-block" id="auth-submit" ${authBusy?'disabled':''}>${authBusy ? 'Un momento…' : (isLogin ? 'Entrar' : 'Crear cuenta')}</button>
   `);
   app.appendChild(card);
-
   card.querySelector('#auth-google').addEventListener('click', signInWithGoogle);
-  card.querySelectorAll('.auth-mode-seg button').forEach(b=>{
-    b.addEventListener('click', ()=>{ authMode = b.dataset.m; authError=''; render(); });
-  });
-  const submit = ()=>{
-    const email = card.querySelector('#auth-email').value;
-    const password = card.querySelector('#auth-password').value;
-    if(!email || !password){ authError = 'Rellena correo y contraseña.'; render(); return; }
-    isLogin ? logIn(email, password) : signUp(email, password);
-  };
-  card.querySelector('#auth-submit').addEventListener('click', submit);
-  card.querySelector('#auth-password').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submit(); });
 }
 
 function renderClubSetupScreen(){
@@ -490,6 +465,7 @@ function render(){
   if(!currentClub){ renderClubSetupScreen(); return; }
   renderApp();
 }
+
 auth.onAuthStateChanged(async (user)=>{
   currentUser = user;
   if(user){

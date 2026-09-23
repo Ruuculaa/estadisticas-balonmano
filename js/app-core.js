@@ -97,18 +97,18 @@ function defaultState(){
 
 // ============================================================
 // CONFIGURACIÓN DE FIREBASE — PEGA AQUÍ TUS DATOS
-// Reutiliza el MISMO proyecto de Firebase que ya usas para CHMartorell: los datos quedan
-// completamente separados igualmente, porque esta app usa colecciones nuevas ("clubs", "users",
-// "inviteCodes") en vez de la antigua ("balonmano"). Así te ahorras crear un proyecto nuevo.
-// Los sacas gratis en https://console.firebase.google.com
+// Este proyecto usa un Firebase PROPIO, separado del de CHMartorell (para que crezca sin
+// límites compartidos ni afectar a esa app). Crea un proyecto nuevo y gratuito en
+// https://console.firebase.google.com, añade una "app web" dentro, y pega aquí los datos
+// que te da (Configuración del proyecto → tus apps → SDK setup and configuration).
 // ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDUe6cC7gb_BddhvwHvIfXmhoaP57sKjiA",
-  authDomain: "chmartorell-stats-c0018.firebaseapp.com",
-  projectId: "chmartorell-stats-c0018",
-  storageBucket: "chmartorell-stats-c0018.firebasestorage.app",
-  messagingSenderId: "502202779492",
-  appId: "1:502202779492:web:5dee519b42979c9e571c71"
+  apiKey: "AIzaSyBs69h_n8qjJ6SWWFft07JOY38JtIH2_Dk",
+  authDomain: "balonmano-stats-7898a.firebaseapp.com",
+  projectId: "balonmano-stats-7898a",
+  storageBucket: "balonmano-stats-7898a.firebasestorage.app",
+  messagingSenderId: "351288563472",
+  appId: "1:351288563472:web:4c8443bd775d2fdd0b3795"
 };
 // ============================================================
 
@@ -116,6 +116,9 @@ let db = null;
 let auth = null;
 let firebaseReady = false;
 try{
+  if(firebaseConfig.apiKey === "TU_API_KEY"){
+    throw new Error("Falta configurar Firebase");
+  }
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
   auth = firebase.auth();

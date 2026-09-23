@@ -490,7 +490,6 @@ function render(){
   if(!currentClub){ renderClubSetupScreen(); return; }
   renderApp();
 }
-
 auth.onAuthStateChanged(async (user)=>{
   currentUser = user;
   if(user){

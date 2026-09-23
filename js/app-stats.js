@@ -151,6 +151,7 @@ function renderApp(){
   const catMatches = matchesOfCategory(activeCategory).length;
   header.innerHTML = `
     <div class="header-top">
+      ${currentClub && currentClub.logo ? `<img src="${currentClub.logo}" class="header-club-logo" alt="">` : ''}
       <h1 class="team-name">${escapeHtml(TEAM_NAME)}</h1>
       <button class="team-edit-btn" id="club-btn" title="Tu club">👥</button>
       <button class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">${themeIcon()}</button>
@@ -264,4 +265,3 @@ function centerCategoryPill(categoryName){
 
 function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-

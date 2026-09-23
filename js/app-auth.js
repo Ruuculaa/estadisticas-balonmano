@@ -91,7 +91,7 @@ async function selectClub(clubId){
     const doc = await db.collection('clubs').doc(clubId).get();
     if(!doc.exists){ authBusy = false; showToast('Ese club ya no existe.'); render(); return; }
     const data = doc.data();
-    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode };
+    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode, logo: data.logo || null };
     TEAM_NAME = data.name;
     CATEGORIES = data.categories || [];
     activeCategory = CATEGORIES[0] || null;
@@ -333,6 +333,65 @@ function renderClubSetupScreen(){
 }
 
 // Panel del club: código de invitación y miembros. Se abre desde el botón "Club" de la cabecera.
+// Redimensiona la imagen elegida a un cuadrado pequeño (128x128) antes de guardarla, para que
+// quepa de sobra en el documento del club (que tiene un límite de 1 MB) y cargue rápido.
+function resizeImageFileToDataUrl(file, size){
+  return new Promise((resolve, reject)=>{
+    if(!file.type.startsWith('image/')){ reject(new Error('not-an-image')); return; }
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error('read-error'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error('decode-error'));
+      img.onload = ()=>{
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadClubLogo(file){
+  try{
+    const dataUrl = await resizeImageFileToDataUrl(file, 128);
+    await db.collection('clubs').doc(currentClub.id).update({ logo: dataUrl });
+    currentClub.logo = dataUrl;
+    showToast('Logo actualizado.');
+    render();
+  }catch(e){
+    showToast('No se pudo subir esa imagen. Prueba con otra.');
+  }
+}
+
+async function addCategoryToClub(rawName){
+  const name = (rawName || '').trim();
+  if(!name){ showToast('Escribe un nombre de categoría.'); return; }
+  if(currentClub.categories.some(c => c.toLowerCase() === name.toLowerCase())){
+    showToast('Esa categoría ya existe.'); return;
+  }
+  try{
+    await db.collection('clubs').doc(currentClub.id).update({
+      categories: firebase.firestore.FieldValue.arrayUnion(name),
+    });
+    currentClub.categories.push(name);
+    CATEGORIES = currentClub.categories;
+    showToast(`Categoría "${name}" añadida.`);
+    render(); // refresca la cabecera (nueva pestaña) y el panel del club a la vez
+  }catch(e){
+    showToast('No se pudo añadir la categoría. Revisa tu conexión.');
+  }
+}
+
 function renderClubPanelModal(box){
   box.innerHTML = `<div class="empty">Cargando…</div>`;
   db.collection('clubs').doc(currentClub.id).collection('members').get().then(snap=>{
@@ -340,9 +399,26 @@ function renderClubPanelModal(box){
     snap.forEach(d=> members.push(d.data()));
     box.innerHTML = `
       <h3>${escapeHtml(currentClub.name)}</h3>
+      <div class="club-logo-row">
+        ${currentClub.logo
+          ? `<img src="${currentClub.logo}" class="club-logo-preview" alt="Logo del club">`
+          : `<div class="club-logo-preview club-logo-placeholder">${escapeHtml((currentClub.name||'?').charAt(0).toUpperCase())}</div>`}
+        <div>
+          <button class="btn btn-ghost btn-small" id="club-logo-btn" type="button">${currentClub.logo ? 'Cambiar logo' : 'Subir logo'}</button>
+          <input type="file" accept="image/*" id="club-logo-input" style="display:none;">
+        </div>
+      </div>
       <div class="auth-section-title" style="margin-top:10px;">Código de invitación</div>
       <div class="invite-code-box">${escapeHtml(currentClub.code||'—')}</div>
       <div class="goal-log-summary" style="justify-content:center;">Compártelo con el resto del cuerpo técnico para que se unan a este club.</div>
+      <div class="auth-section-title" style="margin-top:14px;">Categorías</div>
+      <div class="club-cats-list">
+        ${currentClub.categories.map(c=>`<span class="club-cat-chip">${escapeHtml(c)}</span>`).join('')}
+      </div>
+      <div class="cat-row-input" style="margin-top:8px;">
+        <input type="text" id="new-cat-input" placeholder="Ej. Alevín">
+        <button class="btn btn-ghost btn-small" id="new-cat-add">Añadir</button>
+      </div>
       <div class="auth-section-title" style="margin-top:14px;">Cuerpo técnico</div>
       <div class="goal-log-list">
         ${members.map(m=>`
@@ -360,6 +436,14 @@ function renderClubPanelModal(box){
     `;
     box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
     box.querySelector('#club-logout').addEventListener('click', logOut);
+    box.querySelector('#club-logo-btn').addEventListener('click', ()=> box.querySelector('#club-logo-input').click());
+    box.querySelector('#club-logo-input').addEventListener('change', (e)=>{
+      const file = e.target.files && e.target.files[0];
+      if(file) uploadClubLogo(file);
+    });
+    const submitCat = ()=> addCategoryToClub(box.querySelector('#new-cat-input').value);
+    box.querySelector('#new-cat-add').addEventListener('click', submitCat);
+    box.querySelector('#new-cat-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitCat(); });
     const switchBtn = box.querySelector('#club-switch');
     if(switchBtn) switchBtn.addEventListener('click', ()=>{ modal=null; exitClub(); });
   }).catch(()=>{

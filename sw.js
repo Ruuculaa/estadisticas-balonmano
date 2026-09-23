@@ -1,7 +1,7 @@
 // Service worker minimo: cachea los archivos de la app (HTML/CSS/JS/iconos) para que cargue
 // mas rapido y de forma mas fiable. Nunca cachea Firestore ni ninguna llamada a una API:
 // solo se activa para peticiones al propio dominio de la app.
-const CACHE_NAME = 'balonmano-stats-multiclub-v1';
+const CACHE_NAME = 'balonmano-stats-multiclub-v2';
 const APP_SHELL = [
   '/',
   '/index.html',

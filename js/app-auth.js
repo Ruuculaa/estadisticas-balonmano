@@ -132,7 +132,7 @@ async function createClub(name, categories){
     await db.collection('clubs').doc(clubId).collection('members').doc(currentUser.uid).set({
       email: currentUser.email, role: 'owner', joinedAt: Date.now(),
     });
-    await db.collection('inviteCodes').doc(code).set({ clubId });
+    await db.collection('inviteCodes').doc(code).set({ clubId, clubName: name });
     await db.collection('users').doc(currentUser.uid).set({
       email: currentUser.email,
       clubs: firebase.firestore.FieldValue.arrayUnion({ id: clubId, name, role: 'owner' }),
@@ -157,20 +157,19 @@ async function joinClubWithCode(code){
       authBusy = false; authError = 'Ese código no existe. Revísalo con quien te lo ha dado.'; render(); return;
     }
     const clubId = codeDoc.data().clubId;
-    const clubDoc = await db.collection('clubs').doc(clubId).get();
-    if(!clubDoc.exists){
-      authBusy = false; authError = 'Ese club ya no existe.'; render(); return;
-    }
+    const clubName = codeDoc.data().clubName || 'Club';
     const alreadyMember = userClubs.some(c=>c.id===clubId);
     if(!alreadyMember){
+      // Primero nos unimos (esto sí está permitido: solo te puedes añadir a ti mismo/a).
+      // Recién entonces podemos leer los datos del club, porque las reglas exigen ya ser miembro.
       await db.collection('clubs').doc(clubId).collection('members').doc(currentUser.uid).set({
         email: currentUser.email, role: 'coach', joinedAt: Date.now(),
       });
       await db.collection('users').doc(currentUser.uid).set({
         email: currentUser.email,
-        clubs: firebase.firestore.FieldValue.arrayUnion({ id: clubId, name: clubDoc.data().name, role: 'coach' }),
+        clubs: firebase.firestore.FieldValue.arrayUnion({ id: clubId, name: clubName, role: 'coach' }),
       }, { merge: true });
-      userClubs.push({ id: clubId, name: clubDoc.data().name, role: 'coach' });
+      userClubs.push({ id: clubId, name: clubName, role: 'coach' });
     }
     authBusy = false;
     await selectClub(clubId);

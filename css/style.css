@@ -268,3 +268,5 @@
 .cat-row-input input{flex:1;}
 .cat-row-del{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--accent-2);color:#fff;border:none;font-size:11px;cursor:pointer;}
 .invite-code-box{text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;letter-spacing:6px;background:var(--surface-2);border:1px dashed var(--border);border-radius:10px;padding:14px;color:var(--accent);margin-bottom:8px;}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#1F1F1F;border:1px solid #DADCE0;font-weight:600;font-size:14px;padding:11px;}
+.btn-google:active{background:#F7F7F7;}

@@ -7,6 +7,13 @@ let authMode = 'login';      // 'login' | 'signup' — qué formulario se ve
 let authError = '';
 let authBusy = false;
 let clubSetupMode = 'choose'; // 'choose' | 'create' | 'join'
+let accessStatus = null;      // null (sin comprobar) | 'checking' | 'trial' | 'active' | 'expired'
+let trialDaysLeft = 0;
+
+const TRIAL_DAYS = 30;
+// TODO: pega aquí el ID del precio (recurrente, "por temporada"/anual) que crees en Stripe.
+// Lo encuentras en Stripe Dashboard → Productos → tu producto → el precio → "API ID" (empieza por "price_").
+const STRIPE_PRICE_ID = 'price_1UJZz39G6vW7PGgwF9sQmd6M';
 let newClubCategories = ['']; // filas del formulario de categorías al crear un club
 
 function genInviteCode(){
@@ -51,7 +58,7 @@ async function signInWithGoogle(){
 }
 function logOut(){
   if(unsubscribeCategory){ unsubscribeCategory(); unsubscribeCategory = null; }
-  currentClub = null; state = null; userClubs = [];
+  currentClub = null; state = null; userClubs = []; accessStatus = null;
   auth.signOut();
 }
 function friendlyAuthError(e){
@@ -111,6 +118,101 @@ async function selectClub(clubId){
 }
 
 // Vuelve a la pantalla de elegir/crear club (para cambiar de club sin cerrar sesión)
+// ---------------- Prueba gratuita y suscripción (Stripe) ----------------
+
+// Comprueba si esta persona puede crear un club: o bien tiene una suscripción activa en Stripe
+// (gestionada por la extensión de Firebase), o bien sigue dentro de sus 30 días de prueba gratis.
+// La fecha de inicio de la prueba se guarda la primera vez que se comprueba, y ya no cambia.
+async function checkAccessStatus(){
+  accessStatus = 'checking';
+  try{
+    const userRef = db.collection('users').doc(currentUser.uid);
+    const userDoc = await userRef.get();
+    let trialStart = userDoc.exists ? userDoc.data().trialStart : null;
+    if(!trialStart){
+      trialStart = Date.now();
+      await userRef.set({ trialStart }, { merge: true });
+    }
+    const subsSnap = await db.collection('customers').doc(currentUser.uid)
+      .collection('subscriptions')
+      .where('status', 'in', ['trialing', 'active'])
+      .limit(1).get();
+    if(!subsSnap.empty){
+      accessStatus = 'active';
+    } else {
+      const elapsedDays = (Date.now() - trialStart) / (1000*60*60*24);
+      if(elapsedDays < TRIAL_DAYS){
+        accessStatus = 'trial';
+        trialDaysLeft = Math.max(1, Math.ceil(TRIAL_DAYS - elapsedDays));
+      } else {
+        accessStatus = 'expired';
+      }
+    }
+  }catch(e){
+    // Si falla la comprobacion (por ejemplo, la extension de Stripe aun no esta instalada),
+    // no bloqueamos a nadie por un error tecnico: se trata como si estuviera en periodo de prueba.
+    accessStatus = 'trial';
+    trialDaysLeft = TRIAL_DAYS;
+  }
+  render();
+}
+
+// Crea una sesion de pago de Stripe (a traves de la extension de Firebase) y redirige a ella.
+async function startCheckout(){
+  if(STRIPE_PRICE_ID.includes('PEGA_AQUI')){
+    showToast('Falta configurar el ID del precio de Stripe en app-auth.js.');
+    return;
+  }
+  authBusy = true; render();
+  try{
+    const sessionRef = await db.collection('customers').doc(currentUser.uid)
+      .collection('checkout_sessions').add({
+        price: STRIPE_PRICE_ID,
+        success_url: window.location.origin + window.location.pathname,
+        cancel_url: window.location.origin + window.location.pathname,
+        mode: 'subscription',
+        allow_promotion_codes: true,
+      });
+    sessionRef.onSnapshot((snap)=>{
+      const data = snap.data();
+      if(data && data.url){
+        window.location.assign(data.url);
+      }
+      if(data && data.error){
+        authBusy = false;
+        showToast('No se pudo iniciar el pago: ' + data.error.message);
+        render();
+      }
+    });
+  }catch(e){
+    authBusy = false;
+    showToast('No se pudo iniciar el pago. Revisa tu conexión.');
+    render();
+  }
+}
+
+function renderPaywallScreen(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const card = authCard(`
+    <div class="auth-section-title">Tu prueba gratuita ha terminado</div>
+    <p style="text-align:center;color:var(--muted);font-size:13.5px;margin-top:0;">Para crear un club necesitas una suscripción activa.</p>
+    <div class="price-box">
+      <div class="price-amount">29€<span>/temporada</span></div>
+      <div class="price-desc">Categorías y cuerpo técnico ilimitados · Exportación a Excel · Todas las funciones</div>
+    </div>
+    <button class="btn btn-accent btn-block" id="checkout-btn" ${authBusy?'disabled':''}>${authBusy?'Un momento…':'Suscribirme'}</button>
+    <div class="auth-links">
+      <button class="auth-link-btn" id="recheck-access">Ya he pagado, comprobar de nuevo</button>
+      <button class="auth-link-btn" id="cs-logout">Cerrar sesión</button>
+    </div>
+  `);
+  app.appendChild(card);
+  card.querySelector('#checkout-btn').addEventListener('click', startCheckout);
+  card.querySelector('#recheck-access').addEventListener('click', ()=>{ accessStatus = null; render(); });
+  card.querySelector('#cs-logout').addEventListener('click', logOut);
+}
+
 function exitClub(){
   if(unsubscribeCategory){ unsubscribeCategory(); unsubscribeCategory = null; }
   currentClub = null; state = null;
@@ -188,7 +290,7 @@ function authCard(innerHtml){
   wrap.className = 'auth-wrap';
   wrap.innerHTML = `
     <div class="auth-card">
-      <div class="auth-logo">🤾</div>
+      <img src="/assets/icon-192.png" class="auth-logo-img" alt="Balonmano Stats">
       <h1 class="auth-title">Balonmano Stats</h1>
       <div class="auth-sub">Estadísticas de partidos para clubes de balonmano</div>
       ${innerHtml}
@@ -265,8 +367,18 @@ function renderClubSetupScreen(){
   }
 
   // clubSetupMode === 'create'
+  if(accessStatus === null || accessStatus === 'checking'){
+    checkAccessStatus();
+    app.appendChild(authCard(`<p style="text-align:center;color:var(--muted);font-size:13.5px;">Comprobando tu acceso…</p>`));
+    return;
+  }
+  if(accessStatus === 'expired'){
+    renderPaywallScreen();
+    return;
+  }
   const card = authCard(`
     <div class="auth-section-title">Crea tu club</div>
+    ${accessStatus === 'trial' ? `<div class="trial-badge">Prueba gratuita: te quedan ${trialDaysLeft} día${trialDaysLeft===1?'':'s'}</div>` : ''}
     <div class="form">
       <div><label>Nombre del club</label><input type="text" id="new-club-name" placeholder="Ej. CH Martorell"></div>
     </div>

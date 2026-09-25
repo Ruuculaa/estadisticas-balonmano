@@ -435,125 +435,119 @@ async function updateMemberRole(memberUid, newRole){
 }
 
 function renderAdminCategoriesModal(box){
-  box.innerHTML = `
-    <h3>Panel de administrador</h3>
-    <div class="auth-section-title" style="margin-top:6px;">Categorías del club</div>
-    <div class="admin-cat-list">
-      ${currentClub.categories.map(c => `
-        <div class="admin-cat-row" data-orig="${escapeAttr(c)}">
-          <input type="text" class="admin-cat-input" value="${escapeAttr(c)}">
-          <button class="icon-btn admin-cat-save" title="Guardar nombre" type="button">✓</button>
-          <button class="icon-btn admin-cat-del" title="Eliminar categoría" type="button">✕</button>
-        </div>
-      `).join('')}
-    </div>
-    <div class="cat-row-input" style="margin-top:10px;">
-      <input type="text" id="admin-new-cat-input" placeholder="Ej. Alevín">
-      <button class="btn btn-ghost btn-small" id="admin-new-cat-add" type="button">Añadir</button>
-    </div>
-    <div class="modal-actions" style="margin-top:14px;">
-      <button class="btn btn-ghost" id="admin-back">← Volver al club</button>
-      <button class="btn btn-accent" id="admin-close">Cerrar</button>
-    </div>
-  `;
-  box.querySelector('#admin-close').addEventListener('click', ()=>{ modal=null; render(); });
-  box.querySelector('#admin-back').addEventListener('click', ()=>{ modal={type:'clubPanel', data:{}}; render(); });
-  box.querySelectorAll('.admin-cat-save').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const row = btn.closest('.admin-cat-row');
-      const oldName = row.dataset.orig;
-      const newName = row.querySelector('.admin-cat-input').value;
-      const ok = await renameCategoryInClub(oldName, newName);
-      if(ok) render();
+  box.innerHTML = `<div class="empty">Cargando…</div>`;
+  db.collection('clubs').doc(currentClub.id).collection('members').get().then(snap=>{
+    const members = [];
+    snap.forEach(d=> members.push({ uid: d.id, ...d.data() }));
+    box.innerHTML = `
+      <h3>Panel de administrador</h3>
+      <div class="auth-section-title" style="margin-top:6px;">Categorías del club</div>
+      <div class="admin-cat-list">
+        ${currentClub.categories.map(c => `
+          <div class="admin-cat-row" data-orig="${escapeAttr(c)}">
+            <input type="text" class="admin-cat-input" value="${escapeAttr(c)}">
+            <button class="icon-btn admin-cat-save" title="Guardar nombre" type="button">✓</button>
+            <button class="icon-btn admin-cat-del" title="Eliminar categoría" type="button">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="cat-row-input" style="margin-top:10px;">
+        <input type="text" id="admin-new-cat-input" placeholder="Ej. Alevín">
+        <button class="btn btn-ghost btn-small" id="admin-new-cat-add" type="button">Añadir</button>
+      </div>
+      <div class="auth-section-title" style="margin-top:16px;">Cuerpo técnico</div>
+      <div class="goal-log-list">
+        ${members.map(m=>`
+          <div class="goal-log-row member-row">
+            <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
+            ${m.role==='owner'
+              ? '<span class="goal-log-type">Propietario/a</span>'
+              : `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
+                   <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
+                   <option value="owner">Propietario/a</option>
+                 </select>`}
+          </div>
+        `).join('')}
+      </div>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button class="btn btn-ghost" id="admin-back">← Volver al club</button>
+        <button class="btn btn-accent" id="admin-close">Cerrar</button>
+      </div>
+    `;
+    box.querySelector('#admin-close').addEventListener('click', ()=>{ modal=null; render(); });
+    box.querySelector('#admin-back').addEventListener('click', ()=>{ modal={type:'clubPanel', data:{}}; render(); });
+    box.querySelectorAll('.admin-cat-save').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const row = btn.closest('.admin-cat-row');
+        const oldName = row.dataset.orig;
+        const newName = row.querySelector('.admin-cat-input').value;
+        const ok = await renameCategoryInClub(oldName, newName);
+        if(ok) render();
+      });
     });
-  });
-  box.querySelectorAll('.admin-cat-del').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const row = btn.closest('.admin-cat-row');
-      const name = row.dataset.orig;
-      showConfirm(`¿Eliminar "${name}"? Se borrarán también todos sus partidos y jugadoras. Esto no se puede deshacer.`, ()=> deleteCategoryFromClub(name));
+    box.querySelectorAll('.admin-cat-del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const row = btn.closest('.admin-cat-row');
+        const name = row.dataset.orig;
+        showConfirm(`¿Eliminar "${name}"? Se borrarán también todos sus partidos y jugadoras. Esto no se puede deshacer.`, ()=> deleteCategoryFromClub(name));
+      });
     });
+    const submitNew = ()=> addCategoryToClub(box.querySelector('#admin-new-cat-input').value);
+    box.querySelector('#admin-new-cat-add').addEventListener('click', submitNew);
+    box.querySelector('#admin-new-cat-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitNew(); });
+    box.querySelectorAll('.member-role-select').forEach(sel=>{
+      sel.addEventListener('change', ()=> updateMemberRole(sel.dataset.uid, sel.value));
+    });
+  }).catch(()=>{
+    box.innerHTML = `<p style="color:var(--muted);font-size:13px;">No se pudo cargar la información del club.</p>
+      <div class="modal-actions"><button class="btn btn-accent" id="admin-close">Cerrar</button></div>`;
+    box.querySelector('#admin-close').addEventListener('click', ()=>{ modal=null; render(); });
   });
-  const submitNew = ()=> addCategoryToClub(box.querySelector('#admin-new-cat-input').value);
-  box.querySelector('#admin-new-cat-add').addEventListener('click', submitNew);
-  box.querySelector('#admin-new-cat-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitNew(); });
 }
 
 function renderClubPanelModal(box){
   const isOwner = currentClub.myRole === 'owner';
-  box.innerHTML = `<div class="empty">Cargando…</div>`;
-  const membersPromise = isOwner
-    ? db.collection('clubs').doc(currentClub.id).collection('members').get()
-    : Promise.resolve(null);
-  membersPromise.then(snap=>{
-    const members = [];
-    if(snap) snap.forEach(d=> members.push({ uid: d.id, ...d.data() }));
-    box.innerHTML = `
-      <h3>${escapeHtml(currentClub.name)}</h3>
-      <div class="club-logo-row">
-        ${currentClub.logo
-          ? `<img src="${currentClub.logo}" class="club-logo-preview" alt="Logo del club">`
-          : `<div class="club-logo-preview club-logo-placeholder">${escapeHtml((currentClub.name||'?').charAt(0).toUpperCase())}</div>`}
-        ${isOwner ? `
-          <div>
-            <button class="btn btn-ghost btn-small" id="club-logo-btn" type="button">${currentClub.logo ? 'Cambiar logo' : 'Subir logo'}</button>
-            <input type="file" accept="image/*" id="club-logo-input" style="display:none;">
-          </div>
-        ` : ''}
-      </div>
-      <div class="auth-section-title" style="margin-top:10px;">Código de invitación</div>
-      <div class="invite-code-box">${escapeHtml(currentClub.code||'—')}</div>
-      <div class="goal-log-summary" style="justify-content:center;">Compártelo con el resto del cuerpo técnico para que se unan a este club.</div>
-      <div class="auth-section-title" style="margin-top:14px;">Categorías</div>
-      <div class="club-cats-list">
-        ${currentClub.categories.map(c=>`<span class="club-cat-chip">${escapeHtml(c)}</span>`).join('')}
-      </div>
-      <div class="auth-section-title" style="margin-top:14px;">Cuerpo técnico</div>
+  box.innerHTML = `
+    <h3>${escapeHtml(currentClub.name)}</h3>
+    <div class="club-logo-row">
+      ${currentClub.logo
+        ? `<img src="${currentClub.logo}" class="club-logo-preview" alt="Logo del club">`
+        : `<div class="club-logo-preview club-logo-placeholder">${escapeHtml((currentClub.name||'?').charAt(0).toUpperCase())}</div>`}
       ${isOwner ? `
-        <div class="goal-log-list">
-          ${members.map(m=>`
-            <div class="goal-log-row member-row">
-              <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
-              ${m.role==='owner'
-                ? '<span class="goal-log-type">Propietario/a</span>'
-                : `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
-                     <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
-                     <option value="owner">Propietario/a</option>
-                   </select>`}
-            </div>
-          `).join('')}
+        <div>
+          <button class="btn btn-ghost btn-small" id="club-logo-btn" type="button">${currentClub.logo ? 'Cambiar logo' : 'Subir logo'}</button>
+          <input type="file" accept="image/*" id="club-logo-input" style="display:none;">
         </div>
-      ` : `
-        <p style="color:var(--muted);font-size:12.5px;">Solo el propietario/a del club puede ver quién tiene acceso.</p>
-      `}
-      <div class="modal-actions" style="margin-top:14px;">
-        ${isOwner ? '<button class="btn btn-ghost" id="admin-open">⚙️ Panel de administrador</button>' : ''}
-        ${userClubs.length>1 ? '<button class="btn btn-ghost" id="club-switch">Cambiar de club</button>' : ''}
-        <button class="btn btn-ghost" id="club-logout">Cerrar sesión</button>
-        <button class="btn btn-accent" id="club-panel-close">Cerrar</button>
-      </div>
-    `;
-    box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
-    box.querySelector('#club-logout').addEventListener('click', logOut);
-    box.querySelectorAll('.member-role-select').forEach(sel=>{
-      sel.addEventListener('change', ()=> updateMemberRole(sel.dataset.uid, sel.value));
-    });
-    const adminBtn = box.querySelector('#admin-open');
-    if(adminBtn) adminBtn.addEventListener('click', ()=>{ modal={type:'adminCategories', data:{}}; render(); });
-    const logoBtn = box.querySelector('#club-logo-btn');
-    if(logoBtn) logoBtn.addEventListener('click', ()=> box.querySelector('#club-logo-input').click());
-    const logoInput = box.querySelector('#club-logo-input');
-    if(logoInput) logoInput.addEventListener('change', (e)=>{
-      const file = e.target.files && e.target.files[0];
-      if(file) uploadClubLogo(file);
-    });
-    const switchBtn = box.querySelector('#club-switch');
-    if(switchBtn) switchBtn.addEventListener('click', ()=>{ modal=null; exitClub(); });
-  }).catch(()=>{
-    box.innerHTML = `<p style="color:var(--muted);font-size:13px;">No se pudo cargar la información del club.</p>
-      <div class="modal-actions"><button class="btn btn-accent" id="club-panel-close">Cerrar</button></div>`;
-    box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
+      ` : ''}
+    </div>
+    <div class="auth-section-title" style="margin-top:10px;">Código de invitación</div>
+    <div class="invite-code-box">${escapeHtml(currentClub.code||'—')}</div>
+    <div class="goal-log-summary" style="justify-content:center;">Compártelo con el resto del cuerpo técnico para que se unan a este club.</div>
+    <div class="auth-section-title" style="margin-top:14px;">Categorías</div>
+    <div class="club-cats-list">
+      ${currentClub.categories.map(c=>`<span class="club-cat-chip">${escapeHtml(c)}</span>`).join('')}
+    </div>
+    ${!isOwner ? '<p style="color:var(--muted);font-size:12.5px;margin-top:10px;">Solo el propietario/a del club puede ver el cuerpo técnico y gestionar el club.</p>' : ''}
+    <div class="modal-actions" style="margin-top:14px;">
+      ${isOwner ? '<button class="btn btn-ghost" id="admin-open">⚙️ Panel de administrador</button>' : ''}
+      ${userClubs.length>1 ? '<button class="btn btn-ghost" id="club-switch">Cambiar de club</button>' : ''}
+      <button class="btn btn-ghost" id="club-logout">Cerrar sesión</button>
+      <button class="btn btn-accent" id="club-panel-close">Cerrar</button>
+    </div>
+  `;
+  box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
+  box.querySelector('#club-logout').addEventListener('click', logOut);
+  const adminBtn = box.querySelector('#admin-open');
+  if(adminBtn) adminBtn.addEventListener('click', ()=>{ modal={type:'adminCategories', data:{}}; render(); });
+  const logoBtn = box.querySelector('#club-logo-btn');
+  if(logoBtn) logoBtn.addEventListener('click', ()=> box.querySelector('#club-logo-input').click());
+  const logoInput = box.querySelector('#club-logo-input');
+  if(logoInput) logoInput.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(file) uploadClubLogo(file);
   });
+  const switchBtn = box.querySelector('#club-switch');
+  if(switchBtn) switchBtn.addEventListener('click', ()=>{ modal=null; exitClub(); });
 }
 
 // ---------------- El interruptor: decide qué pantalla tocaba mostrar ----------------

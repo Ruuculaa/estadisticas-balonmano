@@ -161,6 +161,8 @@ async function joinClubWithCode(code){
     const clubName = codeDoc.data().clubName || 'Club';
     const alreadyMember = userClubs.some(c=>c.id===clubId);
     if(!alreadyMember){
+      // Primero nos unimos (esto sí está permitido: solo te puedes añadir a ti mismo/a).
+      // Recién entonces podemos leer los datos del club, porque las reglas exigen ya ser miembro.
       await db.collection('clubs').doc(clubId).collection('members').doc(currentUser.uid).set({
         email: currentUser.email, role: 'coach', joinedAt: Date.now(),
       });
@@ -440,8 +442,8 @@ function renderAdminCategoriesModal(box){
       ${currentClub.categories.map(c => `
         <div class="admin-cat-row" data-orig="${escapeAttr(c)}">
           <input type="text" class="admin-cat-input" value="${escapeAttr(c)}">
-          <button class="icon-btn admin-cat-save" title="Guardar nombre" type="button">💾</button>
-          <button class="icon-btn admin-cat-del" title="Eliminar categoría" type="button">🗑</button>
+          <button class="icon-btn admin-cat-save" title="Guardar nombre" type="button">✓</button>
+          <button class="icon-btn admin-cat-del" title="Eliminar categoría" type="button">✕</button>
         </div>
       `).join('')}
     </div>

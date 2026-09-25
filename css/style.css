@@ -286,7 +286,9 @@
 .admin-cat-list{display:flex;flex-direction:column;gap:8px;}
 .admin-cat-row{display:flex;align-items:center;gap:6px;}
 .admin-cat-row input{flex:1;}
-.admin-cat-row .icon-btn{flex-shrink:0;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;font-size:14px;}
+.admin-cat-row .icon-btn{flex-shrink:0;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;font-size:16px;font-weight:700;}
+.admin-cat-save{color:var(--good);}
+.admin-cat-del{color:var(--accent-2);}
 .header-club-logo{width:30px;height:30px;border-radius:8px;object-fit:cover;flex-shrink:0;}
 .club-logo-row{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
 .club-logo-preview{width:56px;height:56px;border-radius:12px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}

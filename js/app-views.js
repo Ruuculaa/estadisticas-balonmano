@@ -1042,6 +1042,10 @@ function renderModal(app){
     renderClubPanelModal(box);
   }
 
+  if(modal.type==='adminCategories'){
+    renderAdminCategoriesModal(box);
+  }
+
   if(modal.type==='editRivalName'){
     box.innerHTML = `
       <h3>Nombre del rival</h3>

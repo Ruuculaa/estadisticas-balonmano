@@ -161,8 +161,6 @@ async function joinClubWithCode(code){
     const clubName = codeDoc.data().clubName || 'Club';
     const alreadyMember = userClubs.some(c=>c.id===clubId);
     if(!alreadyMember){
-      // Primero nos unimos (esto sí está permitido: solo te puedes añadir a ti mismo/a).
-      // Recién entonces podemos leer los datos del club, porque las reglas exigen ya ser miembro.
       await db.collection('clubs').doc(clubId).collection('members').doc(currentUser.uid).set({
         email: currentUser.email, role: 'coach', joinedAt: Date.now(),
       });

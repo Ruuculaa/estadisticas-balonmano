@@ -206,6 +206,7 @@ function renderAuthScreen(){
       <span>${authBusy ? 'Un momento…' : 'Continuar con Google'}</span>
     </button>
     ${authError ? `<div class="auth-error">${escapeHtml(authError)}</div>` : ''}
+    <div class="legal-note">Al continuar, aceptas la <a href="/privacidad.html" target="_blank">Política de Privacidad</a>, el <a href="/aviso-legal.html" target="_blank">Aviso Legal</a> y la <a href="/cookies.html" target="_blank">Política de Cookies</a>.</div>
   `);
   app.appendChild(card);
   card.querySelector('#auth-google').addEventListener('click', signInWithGoogle);

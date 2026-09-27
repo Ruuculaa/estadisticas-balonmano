@@ -8,6 +8,7 @@ let authError = '';
 let authBusy = false;
 let clubSetupMode = 'choose'; // 'choose' | 'create' | 'join'
 let editingMemberUid = null;  // uid de la fila del cuerpo técnico que se está editando ahora mismo
+let cachedMembers = null;     // lista de miembros ya pedida, para no repetir la llamada en cada acción del panel
 let accessStatus = null;      // null (sin comprobar) | 'checking' | 'trial' | 'active' | 'expired'
 let trialDaysLeft = 0;
 
@@ -59,7 +60,7 @@ async function signInWithGoogle(){
 }
 function logOut(){
   if(unsubscribeCategory){ unsubscribeCategory(); unsubscribeCategory = null; }
-  currentClub = null; state = null; userClubs = []; accessStatus = null;
+  currentClub = null; state = null; userClubs = []; accessStatus = null; cachedMembers = null;
   auth.signOut();
 }
 function friendlyAuthError(e){
@@ -227,7 +228,7 @@ function renderPaywallScreen(){
 
 function exitClub(){
   if(unsubscribeCategory){ unsubscribeCategory(); unsubscribeCategory = null; }
-  currentClub = null; state = null;
+  currentClub = null; state = null; cachedMembers = null;
   clubSetupMode = userClubs.length > 0 ? 'choose' : 'create';
   render();
 }
@@ -556,8 +557,12 @@ async function updateMemberRole(memberUid, newRole){
   }
   try{
     await db.collection('clubs').doc(currentClub.id).collection('members').doc(memberUid).update({ role: newRole });
+    if(cachedMembers){
+      const m = cachedMembers.find(x => x.uid === memberUid);
+      if(m) m.role = newRole;
+    }
     showToast('Rol actualizado.');
-    render(); // vuelve a pintar el panel con la lista al día
+    render(); // vuelve a pintar el panel con la lista ya actualizada, sin volver a pedirla
   }catch(e){
     showToast('No se pudo cambiar el rol.');
   }
@@ -578,6 +583,9 @@ async function removeMember(memberUid, memberEmail){
   }
   try{
     await db.collection('clubs').doc(currentClub.id).collection('members').doc(memberUid).delete();
+    if(cachedMembers){
+      cachedMembers = cachedMembers.filter(x => x.uid !== memberUid);
+    }
     showToast(`Se ha quitado el acceso a ${memberEmail || 'esa persona'}.`);
     render();
   }catch(e){
@@ -586,10 +594,24 @@ async function removeMember(memberUid, memberEmail){
 }
 
 function renderAdminCategoriesModal(box){
+  if(cachedMembers){
+    renderAdminPanelContent(box, cachedMembers);
+    return;
+  }
   box.innerHTML = `<div class="empty">Cargando…</div>`;
   db.collection('clubs').doc(currentClub.id).collection('members').get().then(snap=>{
     const members = [];
     snap.forEach(d=> members.push({ uid: d.id, ...d.data() }));
+    cachedMembers = members;
+    renderAdminPanelContent(box, members);
+  }).catch(()=>{
+    box.innerHTML = `<p style="color:var(--muted);font-size:13px;">No se pudo cargar la información del club.</p>
+      <div class="modal-actions"><button class="btn btn-accent" id="admin-close">Cerrar</button></div>`;
+    box.querySelector('#admin-close').addEventListener('click', ()=>{ cachedMembers=null; modal=null; render(); });
+  });
+}
+
+function renderAdminPanelContent(box, members){
     box.innerHTML = `
       <h3>Panel de administrador</h3>
       <div class="auth-section-title" style="margin-top:6px;">Categorías del club</div>
@@ -632,8 +654,8 @@ function renderAdminCategoriesModal(box){
         <button class="btn btn-accent" id="admin-close">Cerrar</button>
       </div>
     `;
-    box.querySelector('#admin-close').addEventListener('click', ()=>{ editingMemberUid=null; modal=null; render(); });
-    box.querySelector('#admin-back').addEventListener('click', ()=>{ editingMemberUid=null; modal={type:'clubPanel', data:{}}; render(); });
+    box.querySelector('#admin-close').addEventListener('click', ()=>{ editingMemberUid=null; cachedMembers=null; modal=null; render(); });
+    box.querySelector('#admin-back').addEventListener('click', ()=>{ editingMemberUid=null; cachedMembers=null; modal={type:'clubPanel', data:{}}; render(); });
     box.querySelectorAll('.admin-cat-save').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const row = btn.closest('.admin-cat-row');
@@ -669,11 +691,6 @@ function renderAdminCategoriesModal(box){
         showConfirm(`¿Quitar el acceso a ${email}? Dejará de ver este club de inmediato.`, ()=> removeMember(btn.dataset.uid, btn.dataset.email));
       });
     });
-  }).catch(()=>{
-    box.innerHTML = `<p style="color:var(--muted);font-size:13px;">No se pudo cargar la información del club.</p>
-      <div class="modal-actions"><button class="btn btn-accent" id="admin-close">Cerrar</button></div>`;
-    box.querySelector('#admin-close').addEventListener('click', ()=>{ modal=null; render(); });
-  });
 }
 
 function renderClubPanelModal(box){

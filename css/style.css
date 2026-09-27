@@ -92,7 +92,7 @@
   .goal-log-row{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:13px;}
   .goal-log-row:last-child{border-bottom:none;}
   .goal-log-time{font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--muted);width:44px;flex-shrink:0;}
-  .goal-log-player{flex:1;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .goal-log-player{flex:1;min-width:0;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .goal-log-type{color:var(--muted);font-size:11.5px;flex-shrink:0;}
   .goal-log-sign{font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--good);width:14px;text-align:center;flex-shrink:0;}
   .goal-log-row-neg .goal-log-sign{color:var(--accent-2);}
@@ -295,7 +295,7 @@
 .member-remove-btn{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--accent-2);font-size:11px;padding:0;}
 .member-edit-btn{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:0;}
 .member-role-confirm{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--good);font-size:12px;padding:0;}
-.member-role-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 8px;font-size:11.5px;font-weight:600;flex-shrink:0;}
+.member-role-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px;font-size:11px;font-weight:600;flex-shrink:0;width:96px;max-width:96px;}
 .admin-cat-list{display:flex;flex-direction:column;gap:8px;}
 .admin-cat-row{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:6px 8px;}
 .admin-cat-row input{background:var(--surface);}

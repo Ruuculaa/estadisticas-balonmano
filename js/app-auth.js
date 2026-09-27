@@ -7,6 +7,7 @@ let authMode = 'login';      // 'login' | 'signup' — qué formulario se ve
 let authError = '';
 let authBusy = false;
 let clubSetupMode = 'choose'; // 'choose' | 'create' | 'join'
+let editingMemberUid = null;  // uid de la fila del cuerpo técnico que se está editando ahora mismo
 let accessStatus = null;      // null (sin comprobar) | 'checking' | 'trial' | 'active' | 'expired'
 let trialDaysLeft = 0;
 
@@ -604,11 +605,15 @@ function renderAdminCategoriesModal(box){
             <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
             ${m.uid === currentUser.uid
               ? `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'} (tú)</span>`
-              : `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
-                   <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
-                   <option value="owner" ${m.role==='owner'?'selected':''}>Propietario/a</option>
-                 </select>
-                 <button class="icon-btn member-remove-btn" data-uid="${escapeAttr(m.uid)}" data-email="${escapeAttr(m.email||'')}" title="Quitar acceso" type="button">✕</button>`}
+              : editingMemberUid === m.uid
+                ? `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
+                     <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
+                     <option value="owner" ${m.role==='owner'?'selected':''}>Propietario/a</option>
+                   </select>
+                   <button class="icon-btn member-role-confirm" data-uid="${escapeAttr(m.uid)}" title="Guardar rol" type="button">✓</button>`
+                : `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'}</span>
+                   <button class="icon-btn member-edit-btn" data-uid="${escapeAttr(m.uid)}" title="Editar rol" type="button">✎</button>
+                   <button class="icon-btn member-remove-btn" data-uid="${escapeAttr(m.uid)}" data-email="${escapeAttr(m.email||'')}" title="Quitar acceso" type="button">✕</button>`}
           </div>
         `).join('')}
       </div>
@@ -617,8 +622,8 @@ function renderAdminCategoriesModal(box){
         <button class="btn btn-accent" id="admin-close">Cerrar</button>
       </div>
     `;
-    box.querySelector('#admin-close').addEventListener('click', ()=>{ modal=null; render(); });
-    box.querySelector('#admin-back').addEventListener('click', ()=>{ modal={type:'clubPanel', data:{}}; render(); });
+    box.querySelector('#admin-close').addEventListener('click', ()=>{ editingMemberUid=null; modal=null; render(); });
+    box.querySelector('#admin-back').addEventListener('click', ()=>{ editingMemberUid=null; modal={type:'clubPanel', data:{}}; render(); });
     box.querySelectorAll('.admin-cat-save').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const row = btn.closest('.admin-cat-row');
@@ -638,8 +643,15 @@ function renderAdminCategoriesModal(box){
     const submitNew = ()=> addCategoryToClub(box.querySelector('#admin-new-cat-input').value);
     box.querySelector('#admin-new-cat-add').addEventListener('click', submitNew);
     box.querySelector('#admin-new-cat-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitNew(); });
-    box.querySelectorAll('.member-role-select').forEach(sel=>{
-      sel.addEventListener('change', ()=> updateMemberRole(sel.dataset.uid, sel.value));
+    box.querySelectorAll('.member-edit-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ editingMemberUid = btn.dataset.uid; render(); });
+    });
+    box.querySelectorAll('.member-role-confirm').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const sel = box.querySelector(`.member-role-select[data-uid="${btn.dataset.uid}"]`);
+        editingMemberUid = null;
+        updateMemberRole(btn.dataset.uid, sel.value);
+      });
     });
     box.querySelectorAll('.member-remove-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{

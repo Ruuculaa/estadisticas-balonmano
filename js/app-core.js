@@ -156,6 +156,7 @@ function loadTheme(){
 
 async function loadCategory(category){
   if(unsubscribeCategory){ unsubscribeCategory(); unsubscribeCategory = null; }
+  lastAppliedJson = null; // es una categoria distinta, no arrastramos la comparacion de la anterior
 
   // Vacía la vista al instante para no mostrar datos de la categoría anterior mientras carga la nueva
   state = defaultState();
@@ -173,9 +174,12 @@ async function loadCategory(category){
     const doc = await ref.get();
     if(doc.exists && doc.data().json){
       state = JSON.parse(doc.data().json);
+      lastAppliedJson = doc.data().json;
     } else {
       state = defaultState();
-      await ref.set({ json: JSON.stringify(state) });
+      const json = JSON.stringify(state);
+      lastAppliedJson = json;
+      await ref.set({ json });
     }
   }catch(e){
     state = defaultState();
@@ -188,26 +192,31 @@ async function loadCategory(category){
   // Escucha cambios en tiempo real de otros entrenadores conectados a esta misma categoría
   unsubscribeCategory = ref.onSnapshot(doc=>{
     if(saveTimer){ return; } // hay un guardado local pendiente: no lo pisamos con datos remotos que aún no lo incluyen
+    if(doc.metadata.hasPendingWrites){ return; } // es el eco de nuestro propio cambio aún no confirmado: nos lo saltamos, ya lo tenemos
     if(doc.exists && doc.data().json){
-      const remote = JSON.parse(doc.data().json);
-      if(JSON.stringify(remote) !== JSON.stringify(state)){
-        state = remote;
-        if(!state.players) state.players = [];
-        if(!state.matches) state.matches = [];
-        render();
-      }
+      const remoteJson = doc.data().json;
+      if(remoteJson === lastAppliedJson) return; // exactamente lo mismo que ya tenemos: no hace falta ni comparar ni repintar
+      const remote = JSON.parse(remoteJson);
+      state = remote;
+      if(!state.players) state.players = [];
+      if(!state.matches) state.matches = [];
+      lastAppliedJson = remoteJson;
+      render();
     }
   });
 }
 
 let saveTimer = null;
+let lastAppliedJson = null; // el ultimo texto que ya tenemos aplicado, para no reprocesar lo mismo dos veces
 function saveState(){
   if(!firebaseReady) return;
   const ref = docRefFor(activeCategory);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     try{
-      await ref.set({ json: JSON.stringify(state) });
+      const json = JSON.stringify(state);
+      lastAppliedJson = json;
+      await ref.set({ json });
     }catch(e){
       showToast('No se pudo guardar. Revisa tu conexión.');
     }

@@ -49,6 +49,7 @@ async function signInWithGoogle(){
   authBusy = true; authError = ''; render();
   try{
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     await auth.signInWithPopup(provider);
   }catch(e){
     if(e && e.code === 'auth/popup-closed-by-user'){

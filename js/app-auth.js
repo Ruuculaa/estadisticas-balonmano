@@ -100,7 +100,7 @@ async function selectClub(clubId){
     if(!doc.exists){ authBusy = false; showToast('Ese club ya no existe.'); render(); return; }
     const data = doc.data();
     const myEntry = userClubs.find(c => c.id === clubId);
-    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode, logo: data.logo || null, myRole: myEntry ? myEntry.role : 'coach' };
+    currentClub = { id: clubId, name: data.name, categories: data.categories || [], code: data.inviteCode, logo: data.logo || null, myRole: myEntry ? myEntry.role : 'coach', ownerUid: data.ownerUid || null };
     TEAM_NAME = data.name;
     CATEGORIES = data.categories || [];
     activeCategory = CATEGORIES[0] || null;
@@ -550,6 +550,10 @@ async function deleteCategoryFromClub(name){
 }
 
 async function updateMemberRole(memberUid, newRole){
+  if(memberUid === currentClub.ownerUid){
+    showToast('Quien creó el club no puede dejar de ser propietario/a.');
+    return;
+  }
   try{
     await db.collection('clubs').doc(currentClub.id).collection('members').doc(memberUid).update({ role: newRole });
     showToast('Rol actualizado.');
@@ -566,6 +570,10 @@ async function updateMemberRole(memberUid, newRole){
 async function removeMember(memberUid, memberEmail){
   if(memberUid === currentUser.uid){
     showToast('No puedes quitarte el acceso a ti mismo/a.');
+    return;
+  }
+  if(memberUid === currentClub.ownerUid){
+    showToast('Quien creó el club no puede perder el acceso.');
     return;
   }
   try{
@@ -605,15 +613,17 @@ function renderAdminCategoriesModal(box){
             <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
             ${m.uid === currentUser.uid
               ? `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'} (tú)</span>`
-              : editingMemberUid === m.uid
-                ? `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
-                     <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
-                     <option value="owner" ${m.role==='owner'?'selected':''}>Propietario/a</option>
-                   </select>
-                   <button class="icon-btn member-role-confirm" data-uid="${escapeAttr(m.uid)}" title="Guardar rol" type="button">✓</button>`
-                : `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'}</span>
-                   <button class="icon-btn member-edit-btn" data-uid="${escapeAttr(m.uid)}" title="Editar rol" type="button">✎</button>
-                   <button class="icon-btn member-remove-btn" data-uid="${escapeAttr(m.uid)}" data-email="${escapeAttr(m.email||'')}" title="Quitar acceso" type="button">✕</button>`}
+              : m.uid === currentClub.ownerUid
+                ? `<span class="goal-log-type">Propietario/a (fundador/a)</span>`
+                : editingMemberUid === m.uid
+                  ? `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
+                       <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
+                       <option value="owner" ${m.role==='owner'?'selected':''}>Propietario/a</option>
+                     </select>
+                     <button class="icon-btn member-role-confirm" data-uid="${escapeAttr(m.uid)}" title="Guardar rol" type="button">✓</button>`
+                  : `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'}</span>
+                     <button class="icon-btn member-edit-btn" data-uid="${escapeAttr(m.uid)}" title="Editar rol" type="button">✎</button>
+                     <button class="icon-btn member-remove-btn" data-uid="${escapeAttr(m.uid)}" data-email="${escapeAttr(m.email||'')}" title="Quitar acceso" type="button">✕</button>`}
           </div>
         `).join('')}
       </div>

@@ -112,7 +112,18 @@ async function selectClub(clubId){
     }
   }catch(e){
     authBusy = false;
-    showToast('No se pudo entrar en el club.');
+    // Lo más probable si falla aquí es que te hayan quitado el acceso a este club: lo limpiamos
+    // de tu propia lista (solo tú puedes escribir en tu perfil) para que no te vuelva a aparecer.
+    const staleEntry = userClubs.find(c => c.id === clubId);
+    if(staleEntry){
+      userClubs = userClubs.filter(c => c.id !== clubId);
+      try{
+        await db.collection('users').doc(currentUser.uid).set({
+          clubs: firebase.firestore.FieldValue.arrayRemove(staleEntry),
+        }, { merge: true });
+      }catch(e2){ /* si esto tambien falla, no pasa nada: se reintentara la proxima vez */ }
+    }
+    showToast('Ya no tienes acceso a ese club.');
     render();
   }
 }
@@ -547,6 +558,24 @@ async function updateMemberRole(memberUid, newRole){
   }
 }
 
+// Quita el acceso de alguien al club. Ojo: solo puede limpiar SU PROPIA lista de clubes quien
+// pierde el acceso (las reglas de seguridad no dejan que el propietario escriba en el perfil de
+// otra persona); por eso, si esa persona vuelve a intentar entrar, la propia app se encarga de
+// quitarlo de su lista en ese momento (ver selectClub).
+async function removeMember(memberUid, memberEmail){
+  if(memberUid === currentUser.uid){
+    showToast('No puedes quitarte el acceso a ti mismo/a.');
+    return;
+  }
+  try{
+    await db.collection('clubs').doc(currentClub.id).collection('members').doc(memberUid).delete();
+    showToast(`Se ha quitado el acceso a ${memberEmail || 'esa persona'}.`);
+    render();
+  }catch(e){
+    showToast('No se pudo quitar el acceso.');
+  }
+}
+
 function renderAdminCategoriesModal(box){
   box.innerHTML = `<div class="empty">Cargando…</div>`;
   db.collection('clubs').doc(currentClub.id).collection('members').get().then(snap=>{
@@ -573,12 +602,13 @@ function renderAdminCategoriesModal(box){
         ${members.map(m=>`
           <div class="goal-log-row member-row">
             <span class="goal-log-player">${escapeHtml(m.email||'')}</span>
-            ${m.role==='owner'
-              ? '<span class="goal-log-type">Propietario/a</span>'
+            ${m.uid === currentUser.uid
+              ? `<span class="goal-log-type">${m.role==='owner'?'Propietario/a':'Entrenador/a'} (tú)</span>`
               : `<select class="member-role-select" data-uid="${escapeAttr(m.uid)}">
                    <option value="coach" ${m.role!=='owner'?'selected':''}>Entrenador/a</option>
-                   <option value="owner">Propietario/a</option>
-                 </select>`}
+                   <option value="owner" ${m.role==='owner'?'selected':''}>Propietario/a</option>
+                 </select>
+                 <button class="icon-btn member-remove-btn" data-uid="${escapeAttr(m.uid)}" data-email="${escapeAttr(m.email||'')}" title="Quitar acceso" type="button">✕</button>`}
           </div>
         `).join('')}
       </div>
@@ -610,6 +640,12 @@ function renderAdminCategoriesModal(box){
     box.querySelector('#admin-new-cat-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitNew(); });
     box.querySelectorAll('.member-role-select').forEach(sel=>{
       sel.addEventListener('change', ()=> updateMemberRole(sel.dataset.uid, sel.value));
+    });
+    box.querySelectorAll('.member-remove-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const email = btn.dataset.email || 'esta persona';
+        showConfirm(`¿Quitar el acceso a ${email}? Dejará de ver este club de inmediato.`, ()=> removeMember(btn.dataset.uid, btn.dataset.email));
+      });
     });
   }).catch(()=>{
     box.innerHTML = `<p style="color:var(--muted);font-size:13px;">No se pudo cargar la información del club.</p>

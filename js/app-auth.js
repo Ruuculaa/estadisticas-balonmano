@@ -113,6 +113,11 @@ async function selectClub(clubId){
       state = defaultState();
       render();
     }
+    // Si eres quien creó el club, comprobamos (una vez por sesión) cuántos días de prueba te quedan
+    // o si tienes suscripción activa, para poder mostrarlo dentro de la app.
+    if(isClubFounder() && accessStatus === null){
+      checkAccessStatus();
+    }
   }catch(e){
     authBusy = false;
     // Lo más probable si falla aquí es que te hayan quitado el acceso a este club: lo limpiamos
@@ -137,7 +142,15 @@ async function selectClub(clubId){
 // Comprueba si esta persona puede crear un club: o bien tiene una suscripción activa en Stripe
 // (gestionada por la extensión de Firebase), o bien sigue dentro de sus 30 días de prueba gratis.
 // La fecha de inicio de la prueba se guarda la primera vez que se comprueba, y ya no cambia.
+// ¿Es esta persona quien creó el club? (es quien paga/tiene la prueba gratuita)
+function isClubFounder(){
+  if(!currentClub || !currentUser) return false;
+  if(currentClub.ownerUid) return currentClub.ownerUid === currentUser.uid;
+  return currentClub.myRole === 'owner'; // clubes muy antiguos sin ownerUid guardado
+}
+
 async function checkAccessStatus(){
+  if(accessStatus === 'checking') return; // ya hay una comprobación en marcha, no lanzamos otra
   accessStatus = 'checking';
   try{
     const userRef = db.collection('users').doc(currentUser.uid);
@@ -147,11 +160,19 @@ async function checkAccessStatus(){
       trialStart = Date.now();
       await userRef.set({ trialStart }, { merge: true });
     }
-    const subsSnap = await db.collection('customers').doc(currentUser.uid)
-      .collection('subscriptions')
-      .where('status', 'in', ['trialing', 'active'])
-      .limit(1).get();
-    if(!subsSnap.empty){
+    // La suscripción se consulta aparte: si falla esa consulta (p. ej. la extensión de Stripe aún no
+    // está instalada), los días de prueba se siguen calculando bien igualmente.
+    let hasSub = false, subQueryFailed = false;
+    try{
+      const subsSnap = await db.collection('customers').doc(currentUser.uid)
+        .collection('subscriptions')
+        .where('status', 'in', ['trialing', 'active'])
+        .limit(1).get();
+      hasSub = !subsSnap.empty;
+    }catch(e){
+      subQueryFailed = true;
+    }
+    if(hasSub){
       accessStatus = 'active';
     } else {
       const elapsedDays = (Date.now() - trialStart) / (1000*60*60*24);
@@ -159,14 +180,13 @@ async function checkAccessStatus(){
         accessStatus = 'trial';
         trialDaysLeft = Math.max(1, Math.ceil(TRIAL_DAYS - elapsedDays));
       } else {
-        accessStatus = 'expired';
+        // Si no hemos podido comprobar la suscripción, no afirmamos que haya caducado ni bloqueamos a nadie.
+        accessStatus = subQueryFailed ? 'unknown' : 'expired';
       }
     }
   }catch(e){
-    // Si falla la comprobacion (por ejemplo, la extension de Stripe aun no esta instalada),
-    // no bloqueamos a nadie por un error tecnico: se trata como si estuviera en periodo de prueba.
-    accessStatus = 'trial';
-    trialDaysLeft = TRIAL_DAYS;
+    // Si falla incluso leer tu perfil, no bloqueamos a nadie ni mostramos datos inventados.
+    accessStatus = 'unknown';
   }
   render();
 }
@@ -709,6 +729,13 @@ function renderClubPanelModal(box){
         </div>
       ` : ''}
     </div>
+    ${isClubFounder() && ['trial','active','expired'].includes(accessStatus) ? `
+      <div class="auth-section-title" style="margin-top:10px;">Suscripción</div>
+      ${accessStatus==='trial' ? `<div class="trial-badge${trialDaysLeft<=5?' trial-badge-bad':''}">Prueba gratuita: te quedan ${trialDaysLeft} día${trialDaysLeft===1?'':'s'}</div>` : ''}
+      ${accessStatus==='active' ? `<div class="trial-badge trial-badge-ok">Suscripción activa ✓</div>` : ''}
+      ${accessStatus==='expired' ? `<div class="trial-badge trial-badge-bad">Tu prueba gratuita ha terminado</div>` : ''}
+      ${accessStatus!=='active' ? `<button class="btn btn-accent btn-block btn-small" id="panel-subscribe" type="button">Suscribirme · 29€/temporada</button>` : ''}
+    ` : ''}
     <div class="auth-section-title" style="margin-top:10px;">Código de invitación</div>
     <div class="invite-code-box">${escapeHtml(currentClub.code||'—')}</div>
     <div class="goal-log-summary" style="justify-content:center;">Compártelo con el resto del cuerpo técnico para que se unan a este club.</div>
@@ -726,6 +753,8 @@ function renderClubPanelModal(box){
   `;
   box.querySelector('#club-panel-close').addEventListener('click', ()=>{ modal=null; render(); });
   box.querySelector('#club-logout').addEventListener('click', logOut);
+  const subBtn = box.querySelector('#panel-subscribe');
+  if(subBtn) subBtn.addEventListener('click', startCheckout);
   const adminBtn = box.querySelector('#admin-open');
   if(adminBtn) adminBtn.addEventListener('click', ()=>{ modal={type:'adminCategories', data:{}}; render(); });
   const logoBtn = box.querySelector('#club-logo-btn');

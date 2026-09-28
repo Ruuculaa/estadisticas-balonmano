@@ -259,6 +259,10 @@
 .legal-note a{color:var(--muted);text-decoration:underline;}
 .legal-note a:active{color:var(--text);}
 .trial-badge{text-align:center;background:color-mix(in srgb, var(--info) 16%, var(--surface));border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:600;border-radius:20px;padding:6px 12px;margin-bottom:14px;}
+.trial-badge-ok{background:color-mix(in srgb, var(--good) 16%, var(--surface));border-color:var(--good);color:var(--good);}
+.trial-badge-bad{background:color-mix(in srgb, var(--accent-2) 14%, var(--surface));border-color:var(--accent-2);color:var(--accent-2);}
+.trial-pill{flex-shrink:0;background:color-mix(in srgb, var(--info) 16%, var(--surface));border:1px solid var(--info);color:var(--info);font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 8px;cursor:pointer;white-space:nowrap;}
+.trial-pill-warn{background:color-mix(in srgb, var(--accent-2) 14%, var(--surface));border-color:var(--accent-2);color:var(--accent-2);}
 .price-box{text-align:center;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:20px;margin:16px 0;}
 .price-amount{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:36px;color:var(--text);}
 .price-amount span{font-size:14px;font-weight:600;color:var(--muted);}

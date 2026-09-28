@@ -153,6 +153,7 @@ function renderApp(){
     <div class="header-top">
       ${currentClub && currentClub.logo ? `<img src="${currentClub.logo}" class="header-club-logo" alt="">` : ''}
       <h1 class="team-name">${escapeHtml(TEAM_NAME)}</h1>
+      ${isClubFounder() && accessStatus==='trial' ? `<button class="trial-pill${trialDaysLeft<=5?' trial-pill-warn':''}" id="trial-pill" type="button" title="Prueba gratuita">Prueba: ${trialDaysLeft}d</button>` : ''}
       <button class="team-edit-btn" id="club-btn" title="Tu club">👥</button>
       <button class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">${themeIcon()}</button>
     </div>
@@ -166,6 +167,11 @@ function renderApp(){
     </div>
   `;
   header.querySelector('#club-btn').addEventListener('click', ()=>{
+    modal = {type:'clubPanel', data:{}};
+    render();
+  });
+  const trialPillBtn = header.querySelector('#trial-pill');
+  if(trialPillBtn) trialPillBtn.addEventListener('click', ()=>{
     modal = {type:'clubPanel', data:{}};
     render();
   });
@@ -265,3 +271,4 @@ function centerCategoryPill(categoryName){
 
 function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
